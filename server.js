@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
@@ -47,13 +48,21 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 
-// Serve frontend in production
+// Serve frontend in production only when the build exists
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
-  
-  app.use((req, res) => {
-    res.sendFile(path.resolve(__dirname, '../frontend/build/index.html'));
-  });
+  const frontendBuildPath = path.resolve(__dirname, '../frontend/build');
+  const frontendIndexPath = path.join(frontendBuildPath, 'index.html');
+
+  if (fs.existsSync(frontendIndexPath)) {
+    app.use(express.static(frontendBuildPath));
+    app.use((req, res) => {
+      res.sendFile(frontendIndexPath);
+    });
+  } else {
+    app.use((req, res) => {
+      res.status(404).json({ message: 'Frontend build not available for this deployment.' });
+    });
+  }
 } else {
   app.get('/', (req, res) => {
     res.send('ShopNest API is running in Development mode...');

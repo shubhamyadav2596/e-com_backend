@@ -2,7 +2,15 @@ const path = require('path');
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
 
+const fallbackImageUrl = 'https://via.placeholder.com/300x300?text=ShopNest';
+
 const uploadToCloudinary = async (file) => {
+  const hasCloudinaryConfig = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+
+  if (!hasCloudinaryConfig) {
+    return { secure_url: fallbackImageUrl };
+  }
+
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
@@ -48,10 +56,15 @@ const getProductById = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
-    let imageUrl = '';
+    let imageUrl = fallbackImageUrl;
     if (req.file && req.file.buffer) {
-      const result = await uploadToCloudinary(req.file);
-      imageUrl = result.secure_url;
+      try {
+        const result = await uploadToCloudinary(req.file);
+        imageUrl = result?.secure_url || fallbackImageUrl;
+      } catch (error) {
+        console.error('Image upload failed:', error.message);
+        imageUrl = fallbackImageUrl;
+      }
     }
     const product = new Product({
       name, description, price, category, stock, imageUrl
@@ -75,8 +88,13 @@ const updateProduct = async (req, res) => {
       product.stock = stock || product.stock;
 
       if (req.file && req.file.buffer) {
-        const result = await uploadToCloudinary(req.file);
-        product.imageUrl = result.secure_url;
+        try {
+          const result = await uploadToCloudinary(req.file);
+          product.imageUrl = result?.secure_url || fallbackImageUrl;
+        } catch (error) {
+          console.error('Image upload failed:', error.message);
+          product.imageUrl = fallbackImageUrl;
+        }
       }
       const updatedProduct = await product.save();
       res.json(updatedProduct);
