@@ -15,6 +15,9 @@ let cloudinaryConfig = null;
 if (isConfigured) {
   if (CLOUDINARY_URL) {
     cloudinaryConfig = { cloudinary_url: CLOUDINARY_URL, secure: true };
+    if (!CLOUDINARY_URL.startsWith('cloudinary://')) {
+      console.warn('CLOUDINARY_URL should use the cloudinary:// scheme. Example: cloudinary://API_KEY:API_SECRET@CLOUD_NAME');
+    }
   } else {
     cloudinaryConfig = {
       cloud_name: CLOUDINARY_CLOUD_NAME,
@@ -24,6 +27,8 @@ if (isConfigured) {
     };
   }
   cloudinary.config(cloudinaryConfig);
+  cloudinary.config({ secure: true });
+  console.info('Cloudinary configuration loaded. Cloud name:', cloudinaryConfig.cloud_name || 'from CLOUDINARY_URL');
 } else {
   console.warn('Cloudinary is not configured. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
 }

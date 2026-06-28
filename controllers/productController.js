@@ -25,7 +25,7 @@ const removeLocalFile = async (filePath) => {
 const uploadBufferToCloudinary = async (buffer) => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'shopnest/products' },
+      { folder: 'shopnest/products', resource_type: 'auto', use_filename: true, unique_filename: false },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -54,7 +54,7 @@ const getProductImageUrl = async (file) => {
   try {
     const result = file.buffer
       ? await uploadBufferToCloudinary(file.buffer)
-      : await cloudinary.uploader.upload(file.path, { folder: 'shopnest/products' });
+      : await cloudinary.uploader.upload(file.path, { folder: 'shopnest/products', resource_type: 'auto', use_filename: true, unique_filename: false });
 
     if (file.path) {
       await removeLocalFile(file.path);
