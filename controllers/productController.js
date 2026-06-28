@@ -1,31 +1,5 @@
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
-const { Readable } = require('stream');
-
-const uploadBufferToCloudinary = (buffer) => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'products', resource_type: 'auto' },
-      (error, result) => {
-        if (error) {
-          console.error('Cloudinary upload failed:', {
-            message: error.message,
-            http_code: error.http_code,
-            name: error.name
-          });
-          return reject(error);
-        }
-        resolve(result);
-      }
-    );
-
-    const readable = new Readable();
-    readable._read = () => {};
-    readable.push(buffer);
-    readable.push(null);
-    readable.pipe(uploadStream);
-  });
-};
 
 const getProducts = async (req, res) => {
   try {
@@ -51,75 +25,44 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stock, imageUrl: imageUrlFromBody } = req.body;
-    if (!name || !description || !price || !category || !stock) {
-      return res.status(400).json({ message: 'All product fields are required' });
-    }
-
-    let imageUrl = imageUrlFromBody || '';
+    const { name, description, price, category, stock } = req.body;
+    let imageUrl = '';
     if (req.file) {
-      if (!req.file.buffer) {
-        return res.status(400).json({ message: 'Uploaded file is invalid' });
-      }
-      const result = await uploadBufferToCloudinary(req.file.buffer);
+      const result = await cloudinary.uploader.upload(req.file.path);
       imageUrl = result.secure_url;
     }
-
-    if (!imageUrl) {
-      return res.status(400).json({ message: 'Product image is required' });
-    }
-
     const product = new Product({
-      name,
-      description,
-      price,
-      category,
-      stock,
-      imageUrl
+      name, description, price, category, stock, imageUrl
     });
     const createdProduct = await product.save();
     res.status(201).json(createdProduct);
   } catch (error) {
-    console.error('Create product error:', error);
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Unable to create product', error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
 const updateProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stock, imageUrl: imageUrlFromBody } = req.body;
+    const { name, description, price, category, stock } = req.body;
     const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
+    if (product) {
+      product.name = name || product.name;
+      product.description = description || product.description;
+      product.price = price || product.price;
+      product.category = category || product.category;
+      product.stock = stock || product.stock;
 
-    product.name = name || product.name;
-    product.description = description || product.description;
-    product.price = price || product.price;
-    product.category = category || product.category;
-    product.stock = stock || product.stock;
-
-    if (req.file) {
-      if (!req.file.buffer) {
-        return res.status(400).json({ message: 'Uploaded file is invalid' });
+      if (req.file) {
+        const result = await cloudinary.uploader.upload(req.file.path);
+        product.imageUrl = result.secure_url;
       }
-      const result = await uploadBufferToCloudinary(req.file.buffer);
-      product.imageUrl = result.secure_url;
-    } else if (imageUrlFromBody) {
-      product.imageUrl = imageUrlFromBody;
+      const updatedProduct = await product.save();
+      res.json(updatedProduct);
+    } else {
+      res.status(404).json({ message: 'Product not found' });
     }
-
-    const updatedProduct = await product.save();
-    res.json(updatedProduct);
   } catch (error) {
-    console.error('Update product error:', error);
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Unable to update product', error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
