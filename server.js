@@ -10,9 +10,33 @@ connectDB();
 const app = express();
 
 // Set CORS for frontend URL / allow single-node deploy
+// app.use(cors({
+//   origin: ['http://localhost:3000', 'https://shopnest-liart.vercel.app', process.env.FRONTEND_URL],
+//   credentials: true
+// }));
+
+const allowedOrigins = [
+  'http://localhost:5173', 'https://shopnest-liart.vercel.app',
+  ...(process.env.FRONTEND_URLS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+];
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://shopnest-liart.vercel.app', process.env.FRONTEND_URL],
-  credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl requests, or Postman)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true // Allow cookies/headers if needed
 }));
 
 app.use(express.json());
