@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config();
 connectDB();
@@ -11,7 +12,7 @@ const app = express();
 
 // Set CORS for frontend URL / allow single-node deploy
 app.use(cors({
-  origin: ['http://localhost:3000', process.env.FRONTEND_URL],
+  origin: ['http://localhost:3000', 'https://e-commerce-seven-delta-81.vercel.app', process.env.FRONTEND_URL],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
@@ -49,14 +50,26 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
-  
-  app.use((req, res) => {
-    res.sendFile(path.resolve(__dirname, '../frontend/build/index.html'));
+// Serve frontend in production (only if a build exists)
+const possibleBuildPaths = [
+  process.env.FRONTEND_BUILD_PATH,
+  path.join(__dirname, '../frontend/build'),
+  path.join('/var', 'frontend', 'build')
+].filter(Boolean);
+
+const frontendBuildPath = possibleBuildPaths.find(p => fs.existsSync(p));
+
+if (process.env.NODE_ENV === 'production' && frontendBuildPath) {
+  app.use(express.static(frontendBuildPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
 } else {
+  if (process.env.NODE_ENV === 'production' && !frontendBuildPath) {
+    console.warn('Frontend build not found. Skipping static file serving. Checked:', possibleBuildPaths);
+  }
+
   app.get('/', (req, res) => {
     res.send('ShopNest API is running in Development mode...');
   });
