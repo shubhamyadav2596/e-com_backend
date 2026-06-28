@@ -18,7 +18,7 @@ const uploadBufferToCloudinary = (buffer) => {
     readable.push(null);
     readable.pipe(uploadStream);
   });
-});
+};
 
 const getProducts = async (req, res) => {
   try {
