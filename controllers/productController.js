@@ -1,81 +1,5 @@
 const Product = require('../models/Product');
-const { cloudinary, isConfigured: hasCloudinaryConfig } = require('../config/cloudinary');
-const fs = require('fs/promises');
-const path = require('path');
-const { Readable } = require('stream');
-
-const getLocalImageUrl = (file) => {
-  if (!file || !file.path) {
-    throw new Error('Local file storage is unavailable in this environment. Configure Cloudinary for image uploads.');
-  }
-
-  return `/uploads/${path.basename(file.path)}`;
-};
-
-const removeLocalFile = async (filePath) => {
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.warn(`Could not remove uploaded temp file: ${error.message}`);
-    }
-  }
-};
-
-const uploadBufferToCloudinary = async (buffer) => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'shopnest/products', resource_type: 'auto', use_filename: true, unique_filename: false },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
-      }
-    );
-
-    const readable = new Readable();
-    readable.push(buffer);
-    readable.push(null);
-    readable.pipe(uploadStream);
-  });
-};
-
-const getProductImageUrl = async (file) => {
-  if (!file) {
-    throw new Error('Product image is required');
-  }
-
-  if (!hasCloudinaryConfig) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Cloudinary configuration is required in production for image uploads. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
-    }
-    return getLocalImageUrl(file);
-  }
-
-  try {
-    const result = file.buffer
-      ? await uploadBufferToCloudinary(file.buffer)
-      : await cloudinary.uploader.upload(file.path, { folder: 'shopnest/products', resource_type: 'auto', use_filename: true, unique_filename: false });
-
-    if (file.path) {
-      await removeLocalFile(file.path);
-    }
-
-    return result.secure_url;
-  } catch (error) {
-    console.error(`Cloudinary upload failed: ${error.message}`, {
-      code: error.http_code || error.code,
-      request_id: error.request_id,
-      status: error.http_code || error.status,
-      raw_error: error,
-    });
-    if (file.path && process.env.NODE_ENV !== 'production') {
-      return getLocalImageUrl(file);
-    }
-    const requestInfo = error.request_id ? ` request_id=${error.request_id}` : '';
-    const statusInfo = error.http_code ? ` status=${error.http_code}` : '';
-    throw new Error(`Cloudinary upload failed. Verify credentials and permissions.${requestInfo}${statusInfo}`);
-  }
-};
+const cloudinary = require('../config/cloudinary');
 
 const getProducts = async (req, res) => {
   try {
@@ -102,7 +26,11 @@ const getProductById = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
-    const imageUrl = await getProductImageUrl(req.file);
+    let imageUrl = '';
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+      imageUrl = result.secure_url;
+    }
     const product = new Product({
       name, description, price, category, stock, imageUrl
     });
@@ -125,7 +53,8 @@ const updateProduct = async (req, res) => {
       product.stock = stock || product.stock;
 
       if (req.file) {
-        product.imageUrl = await getProductImageUrl(req.file);
+        const result = await cloudinary.uploader.upload(req.file.path);
+        product.imageUrl = result.secure_url;
       }
       const updatedProduct = await product.save();
       res.json(updatedProduct);
