@@ -44,44 +44,75 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stock } = req.body;
-    let imageUrl = '';
-    if (req.file && req.file.buffer) {
+    const { name, description, price, category, stock, imageUrl: imageUrlFromBody } = req.body;
+    if (!name || !description || !price || !category || !stock) {
+      return res.status(400).json({ message: 'All product fields are required' });
+    }
+
+    let imageUrl = imageUrlFromBody || '';
+    if (req.file) {
+      if (!req.file.buffer) {
+        return res.status(400).json({ message: 'Uploaded file is invalid' });
+      }
       const result = await uploadBufferToCloudinary(req.file.buffer);
       imageUrl = result.secure_url;
     }
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: 'Product image is required' });
+    }
+
     const product = new Product({
-      name, description, price, category, stock, imageUrl
+      name,
+      description,
+      price,
+      category,
+      stock,
+      imageUrl
     });
     const createdProduct = await product.save();
     res.status(201).json(createdProduct);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Create product error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Unable to create product', error: error.message });
   }
 };
 
 const updateProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stock } = req.body;
+    const { name, description, price, category, stock, imageUrl: imageUrlFromBody } = req.body;
     const product = await Product.findById(req.params.id);
-    if (product) {
-      product.name = name || product.name;
-      product.description = description || product.description;
-      product.price = price || product.price;
-      product.category = category || product.category;
-      product.stock = stock || product.stock;
-
-      if (req.file && req.file.buffer) {
-        const result = await uploadBufferToCloudinary(req.file.buffer);
-        product.imageUrl = result.secure_url;
-      }
-      const updatedProduct = await product.save();
-      res.json(updatedProduct);
-    } else {
-      res.status(404).json({ message: 'Product not found' });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
     }
+
+    product.name = name || product.name;
+    product.description = description || product.description;
+    product.price = price || product.price;
+    product.category = category || product.category;
+    product.stock = stock || product.stock;
+
+    if (req.file) {
+      if (!req.file.buffer) {
+        return res.status(400).json({ message: 'Uploaded file is invalid' });
+      }
+      const result = await uploadBufferToCloudinary(req.file.buffer);
+      product.imageUrl = result.secure_url;
+    } else if (imageUrlFromBody) {
+      product.imageUrl = imageUrlFromBody;
+    }
+
+    const updatedProduct = await product.save();
+    res.json(updatedProduct);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Update product error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Unable to update product', error: error.message });
   }
 };
 
