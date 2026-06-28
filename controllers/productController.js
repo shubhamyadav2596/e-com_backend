@@ -5,9 +5,16 @@ const { Readable } = require('stream');
 const uploadBufferToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'products' },
+      { folder: 'products', resource_type: 'auto' },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error('Cloudinary upload failed:', {
+            message: error.message,
+            http_code: error.http_code,
+            name: error.name
+          });
+          return reject(error);
+        }
         resolve(result);
       }
     );
