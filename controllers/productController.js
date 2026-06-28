@@ -44,7 +44,7 @@ const getProductImageUrl = async (file) => {
     throw new Error('Product image is required');
   }
 
-  if (!hasCloudinaryConfig()) {
+  if (!hasCloudinaryConfig) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Cloudinary configuration is required in production for image uploads. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
     }
@@ -67,7 +67,7 @@ const getProductImageUrl = async (file) => {
       request_id: error.request_id,
       status: error.http_code || error.status,
     });
-    if (file.path && !process.env.NODE_ENV === 'production') {
+    if (file.path && process.env.NODE_ENV !== 'production') {
       return getLocalImageUrl(file);
     }
     throw new Error('Cloudinary upload failed. Verify your credentials and account permissions.');
