@@ -1,15 +1,8 @@
 const Product = require('../models/Product');
-const cloudinary = require('../config/cloudinary');
+const { cloudinary, isConfigured: hasCloudinaryConfig } = require('../config/cloudinary');
 const fs = require('fs/promises');
 const path = require('path');
 const { Readable } = require('stream');
-
-const hasCloudinaryConfig = () =>
-  Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
 
 const getLocalImageUrl = (file) => {
   if (!file || !file.path) {
@@ -52,6 +45,9 @@ const getProductImageUrl = async (file) => {
   }
 
   if (!hasCloudinaryConfig()) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Cloudinary configuration is required in production for image uploads. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
+    }
     return getLocalImageUrl(file);
   }
 
@@ -66,11 +62,15 @@ const getProductImageUrl = async (file) => {
 
     return result.secure_url;
   } catch (error) {
-    console.error(`Cloudinary upload failed: ${error.message}`);
-    if (file.path) {
+    console.error(`Cloudinary upload failed: ${error.message}`, {
+      code: error.http_code || error.code,
+      request_id: error.request_id,
+      status: error.http_code || error.status,
+    });
+    if (file.path && !process.env.NODE_ENV === 'production') {
       return getLocalImageUrl(file);
     }
-    throw error;
+    throw new Error('Cloudinary upload failed. Verify your credentials and account permissions.');
   }
 };
 

@@ -9,14 +9,11 @@ const {
 const { protect } = require("../middleware/authMiddleware");
 const { admin } = require("../middleware/adminMiddleware");
 const multer = require("multer");
+const { isConfigured: cloudinaryConfigured } = require("../config/cloudinary");
 
 const useMemoryUploads =
   process.env.NODE_ENV === 'production' ||
-  Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
+  cloudinaryConfigured;
 
 const upload = multer({ storage: useMemoryUploads ? multer.memoryStorage() : multer.diskStorage({ destination: "uploads/" }) });
 
