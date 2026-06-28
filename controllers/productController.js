@@ -1,5 +1,27 @@
+const path = require('path');
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
+
+const uploadToCloudinary = async (file) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'shopnest-products',
+        public_id: `${Date.now()}-${path.parse(file.originalname).name}`
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(result);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+};
 
 const getProducts = async (req, res) => {
   try {
@@ -27,8 +49,8 @@ const createProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
     let imageUrl = '';
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path);
+    if (req.file && req.file.buffer) {
+      const result = await uploadToCloudinary(req.file);
       imageUrl = result.secure_url;
     }
     const product = new Product({
@@ -52,8 +74,8 @@ const updateProduct = async (req, res) => {
       product.category = category || product.category;
       product.stock = stock || product.stock;
 
-      if (req.file) {
-        const result = await cloudinary.uploader.upload(req.file.path);
+      if (req.file && req.file.buffer) {
+        const result = await uploadToCloudinary(req.file);
         product.imageUrl = result.secure_url;
       }
       const updatedProduct = await product.save();
