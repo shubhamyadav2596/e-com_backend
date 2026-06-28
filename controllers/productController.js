@@ -2,6 +2,7 @@ const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
 const fs = require('fs/promises');
 const path = require('path');
+const { Readable } = require('stream');
 
 const hasCloudinaryConfig = () =>
   Boolean(
@@ -10,7 +11,13 @@ const hasCloudinaryConfig = () =>
     process.env.CLOUDINARY_API_SECRET
   );
 
-const getLocalImageUrl = (file) => `/uploads/${path.basename(file.path)}`;
+const getLocalImageUrl = (file) => {
+  if (!file || !file.path) {
+    throw new Error('Local file storage is unavailable in this environment. Configure Cloudinary for image uploads.');
+  }
+
+  return `/uploads/${path.basename(file.path)}`;
+};
 
 const removeLocalFile = async (filePath) => {
   try {
@@ -20,6 +27,23 @@ const removeLocalFile = async (filePath) => {
       console.warn(`Could not remove uploaded temp file: ${error.message}`);
     }
   }
+};
+
+const uploadBufferToCloudinary = async (buffer) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: 'shopnest/products' },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    const readable = new Readable();
+    readable.push(buffer);
+    readable.push(null);
+    readable.pipe(uploadStream);
+  });
 };
 
 const getProductImageUrl = async (file) => {
@@ -32,14 +56,21 @@ const getProductImageUrl = async (file) => {
   }
 
   try {
-    const result = await cloudinary.uploader.upload(file.path, {
-      folder: 'shopnest/products',
-    });
-    await removeLocalFile(file.path);
+    const result = file.buffer
+      ? await uploadBufferToCloudinary(file.buffer)
+      : await cloudinary.uploader.upload(file.path, { folder: 'shopnest/products' });
+
+    if (file.path) {
+      await removeLocalFile(file.path);
+    }
+
     return result.secure_url;
   } catch (error) {
     console.error(`Cloudinary upload failed: ${error.message}`);
-    return getLocalImageUrl(file);
+    if (file.path) {
+      return getLocalImageUrl(file);
+    }
+    throw error;
   }
 };
 
