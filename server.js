@@ -11,7 +11,7 @@ const app = express();
 
 // Set CORS for frontend URL / allow single-node deploy
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://e-commerce-seven-delta-81.vercel.app', process.env.FRONTEND_URL],
+  origin: ['http://localhost:3000', 'https://shopnest-liart.vercel.app', process.env.FRONTEND_URL],
   credentials: true
 }));
 
