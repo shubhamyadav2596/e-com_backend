@@ -11,18 +11,21 @@ const isConfigured = Boolean(
   (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET)
 );
 
+let cloudinaryConfig = null;
 if (isConfigured) {
   if (CLOUDINARY_URL) {
-    cloudinary.config({ cloudinary_url: CLOUDINARY_URL });
+    cloudinaryConfig = { cloudinary_url: CLOUDINARY_URL, secure: true };
   } else {
-    cloudinary.config({
+    cloudinaryConfig = {
       cloud_name: CLOUDINARY_CLOUD_NAME,
       api_key: CLOUDINARY_API_KEY,
       api_secret: CLOUDINARY_API_SECRET,
-    });
+      secure: true,
+    };
   }
+  cloudinary.config(cloudinaryConfig);
 } else {
   console.warn('Cloudinary is not configured. Set CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
 }
 
-module.exports = { cloudinary, isConfigured };
+module.exports = { cloudinary, isConfigured, cloudinaryConfig };

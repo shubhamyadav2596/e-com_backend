@@ -66,11 +66,14 @@ const getProductImageUrl = async (file) => {
       code: error.http_code || error.code,
       request_id: error.request_id,
       status: error.http_code || error.status,
+      raw_error: error,
     });
     if (file.path && process.env.NODE_ENV !== 'production') {
       return getLocalImageUrl(file);
     }
-    throw new Error('Cloudinary upload failed. Verify your credentials and account permissions.');
+    const requestInfo = error.request_id ? ` request_id=${error.request_id}` : '';
+    const statusInfo = error.http_code ? ` status=${error.http_code}` : '';
+    throw new Error(`Cloudinary upload failed. Verify credentials and permissions.${requestInfo}${statusInfo}`);
   }
 };
 
