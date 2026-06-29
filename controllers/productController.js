@@ -2,20 +2,24 @@ const path = require('path');
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
 
-const fallbackImageUrl = 'https://via.placeholder.com/300x300?text=ShopNest';
-
-const getUploadedFile = (req) => {
-  if (req.file) return req.file;
-  if (Array.isArray(req.files) && req.files.length > 0) return req.files[0];
-  return null;
-};
+// Swapped to placehold.co as via.placeholder.com frequently fails to load/hotlink
+const fallbackImageUrl = 'https://placehold.co/300x300?text=ShopNest';
 
 const uploadToCloudinary = async (file) => {
-  const hasCloudinaryConfig = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+  const hasCloudinaryConfig = 
+    process.env.CLOUDINARY_CLOUD_NAME && 
+    process.env.CLOUDINARY_API_KEY && 
+    process.env.CLOUDINARY_API_SECRET;
 
   if (!hasCloudinaryConfig) {
-    console.warn('Cloudinary config missing. Falling back to placeholder image.');
+    console.warn('⚠️ Cloudinary config missing in environment variables. Defaulting to fallback image.');
     return { secure_url: fallbackImageUrl };
+  }
+
+  // Ensure we actually have a buffer before attempting to stream
+  if (!file || !file.buffer) {
+    console.error('❌ No file buffer provided. Ensure Multer is using memoryStorage().');
+    throw new Error('File buffer is missing.');
   }
 
   return new Promise((resolve, reject) => {
@@ -26,10 +30,10 @@ const uploadToCloudinary = async (file) => {
       },
       (error, result) => {
         if (error) {
+          console.error('❌ Cloudinary Upload Error:', error);
           reject(error);
           return;
         }
-
         resolve(result);
       }
     );
@@ -64,21 +68,22 @@ const createProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
     let imageUrl = fallbackImageUrl;
-    const file = getUploadedFile(req);
-
-    if (file && file.buffer) {
+    
+    if (req.file) {
       try {
-        const result = await uploadToCloudinary(file);
+        const result = await uploadToCloudinary(req.file);
         imageUrl = result?.secure_url || fallbackImageUrl;
       } catch (error) {
-        console.error('Image upload failed:', error.message);
+        console.error('Create - Image upload failed:', error.message);
+        // We fallback to the placeholder if the upload explicitly fails
         imageUrl = fallbackImageUrl;
       }
     }
-
+    
     const product = new Product({
       name, description, price, category, stock, imageUrl
     });
+    
     const createdProduct = await product.save();
     res.status(201).json(createdProduct);
   } catch (error) {
@@ -90,6 +95,7 @@ const updateProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
     const product = await Product.findById(req.params.id);
+    
     if (product) {
       product.name = name || product.name;
       product.description = description || product.description;
@@ -97,16 +103,20 @@ const updateProduct = async (req, res) => {
       product.category = category || product.category;
       product.stock = stock || product.stock;
 
-      const file = getUploadedFile(req);
-      if (file && file.buffer) {
+      if (req.file) {
         try {
-          const result = await uploadToCloudinary(file);
-          product.imageUrl = result?.secure_url || fallbackImageUrl;
+          const result = await uploadToCloudinary(req.file);
+          // Only overwrite the image if the upload is successful
+          if (result && result.secure_url) {
+            product.imageUrl = result.secure_url;
+          }
         } catch (error) {
-          console.error('Image upload failed:', error.message);
-          product.imageUrl = fallbackImageUrl;
+          console.error('Update - Image upload failed:', error.message);
+          // We DO NOT set the fallback image here, so we don't accidentally 
+          // delete their old image just because the new upload failed.
         }
       }
+      
       const updatedProduct = await product.save();
       res.json(updatedProduct);
     } else {
