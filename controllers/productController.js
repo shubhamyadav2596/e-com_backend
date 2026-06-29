@@ -2,24 +2,28 @@ const path = require('path');
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
 
-const fallbackImageUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="%234b5563">ShopNest</text></svg>';
+const fallbackImageUrl = 'https://via.placeholder.com/300x300?text=ShopNest';
 
-const hasCloudinaryConfig = () =>
-  process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+const getUploadedFile = (req) => {
+  if (req.file) return req.file;
+  if (Array.isArray(req.files) && req.files.length > 0) return req.files[0];
+  return null;
+};
 
-const buildCloudinaryOptions = (filename) => ({
-  folder: 'shopnest-products',
-  public_id: `${Date.now()}-${path.parse(filename).name}`
-});
+const uploadToCloudinary = async (file) => {
+  const hasCloudinaryConfig = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
 
-const uploadBufferToCloudinary = async (file) => {
-  if (!hasCloudinaryConfig()) {
+  if (!hasCloudinaryConfig) {
+    console.warn('Cloudinary config missing. Falling back to placeholder image.');
     return { secure_url: fallbackImageUrl };
   }
 
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      buildCloudinaryOptions(file.originalname || 'image'),
+      {
+        folder: 'shopnest-products',
+        public_id: `${Date.now()}-${path.parse(file.originalname).name}`
+      },
       (error, result) => {
         if (error) {
           reject(error);
@@ -32,80 +36,6 @@ const uploadBufferToCloudinary = async (file) => {
 
     stream.end(file.buffer);
   });
-};
-
-const uploadBase64ToCloudinary = async (base64String, filename = 'image') => {
-  if (!hasCloudinaryConfig()) {
-    return { secure_url: fallbackImageUrl };
-  }
-
-  const base64Data = base64String.includes(';base64,')
-    ? base64String.split(';base64,')[1]
-    : base64String;
-
-  if (!base64Data) {
-    throw new Error('Invalid base64 image data');
-  }
-
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      buildCloudinaryOptions(filename),
-      (error, result) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve(result);
-      }
-    );
-
-    stream.end(Buffer.from(base64Data, 'base64'));
-  });
-};
-
-const uploadUrlToCloudinary = async (imageUrl, filename = 'image') => {
-  if (!hasCloudinaryConfig()) {
-    return { secure_url: imageUrl };
-  }
-
-  return cloudinary.uploader.upload(imageUrl, buildCloudinaryOptions(filename));
-};
-
-const isBase64DataUrl = (value) =>
-  typeof value === 'string' && value.startsWith('data:') && value.includes(';base64,');
-
-const isHttpUrl = (value) =>
-  typeof value === 'string' && /^https?:\/\//i.test(value);
-
-const resolveImageUpload = async (req) => {
-  const uploadedFile = req.file && req.file.buffer
-    ? req.file
-    : Array.isArray(req.files)
-      ? req.files.find((file) => file && file.buffer)
-      : null;
-
-  if (uploadedFile) {
-    return uploadBufferToCloudinary(uploadedFile);
-  }
-
-  if (isBase64DataUrl(req.body.image)) {
-    return uploadBase64ToCloudinary(req.body.image, req.body.imageName);
-  }
-
-  if (isBase64DataUrl(req.body.imageUrl)) {
-    return uploadBase64ToCloudinary(req.body.imageUrl, req.body.imageName);
-  }
-
-  if (isHttpUrl(req.body.imageUrl)) {
-    return uploadUrlToCloudinary(req.body.imageUrl, req.body.imageName);
-  }
-
-  if (isHttpUrl(req.body.image)) {
-    return uploadUrlToCloudinary(req.body.image, req.body.imageName);
-  }
-
-  return { secure_url: fallbackImageUrl };
 };
 
 const getProducts = async (req, res) => {
@@ -134,13 +64,16 @@ const createProduct = async (req, res) => {
   try {
     const { name, description, price, category, stock } = req.body;
     let imageUrl = fallbackImageUrl;
+    const file = getUploadedFile(req);
 
-    try {
-      const result = await resolveImageUpload(req);
-      imageUrl = result?.secure_url || fallbackImageUrl;
-    } catch (error) {
-      console.error('Image upload failed:', error.message);
-      imageUrl = fallbackImageUrl;
+    if (file && file.buffer) {
+      try {
+        const result = await uploadToCloudinary(file);
+        imageUrl = result?.secure_url || fallbackImageUrl;
+      } catch (error) {
+        console.error('Image upload failed:', error.message);
+        imageUrl = fallbackImageUrl;
+      }
     }
 
     const product = new Product({
@@ -164,16 +97,16 @@ const updateProduct = async (req, res) => {
       product.category = category || product.category;
       product.stock = stock || product.stock;
 
-      if (req.file || req.body.image || req.body.imageUrl) {
+      const file = getUploadedFile(req);
+      if (file && file.buffer) {
         try {
-          const result = await resolveImageUpload(req);
-          product.imageUrl = result?.secure_url || product.imageUrl || fallbackImageUrl;
+          const result = await uploadToCloudinary(file);
+          product.imageUrl = result?.secure_url || fallbackImageUrl;
         } catch (error) {
           console.error('Image upload failed:', error.message);
-          product.imageUrl = product.imageUrl || fallbackImageUrl;
+          product.imageUrl = fallbackImageUrl;
         }
       }
-
       const updatedProduct = await product.save();
       res.json(updatedProduct);
     } else {
