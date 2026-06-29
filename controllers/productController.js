@@ -65,6 +65,7 @@ const getProductById = async (req, res) => {
 };
 
 const createProduct = async (req, res) => {
+  console.log("MULTER FILE:", req.file);
   try {
     const { name, description, price, category, stock } = req.body;
     let imageUrl = fallbackImageUrl;
