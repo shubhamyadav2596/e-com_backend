@@ -43,30 +43,38 @@ app.use('/api/payment', require('./routes/paymentRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 
 // Serve frontend in production only when the build exists
-if (process.env.NODE_ENV === 'production') {
-  const frontendBuildPath = path.resolve(__dirname, '../frontend/build');
-  const frontendIndexPath = path.join(frontendBuildPath, 'index.html');
+// if (process.env.NODE_ENV === 'production') {
+//   const frontendBuildPath = path.resolve(__dirname, '../frontend/build');
+//   const frontendIndexPath = path.join(frontendBuildPath, 'index.html');
 
-  if (fs.existsSync(frontendIndexPath)) {
-    app.use(express.static(frontendBuildPath));
-    app.use((req, res) => {
-      res.sendFile(frontendIndexPath);
-    });
-  } else {
-    app.use((req, res) => {
-      res.status(404).json({ message: 'Frontend build not available for this deployment.' });
-    });
-  }
-} else {
-  app.get('/', (req, res) => {
-    res.send('ShopNest API is running in Development mode...');
-  });
-}
+//   if (fs.existsSync(frontendIndexPath)) {
+//     app.use(express.static(frontendBuildPath));
+//     app.use((req, res) => {
+//       res.sendFile(frontendIndexPath);
+//     });
+//   } else {
+//     app.use((req, res) => {
+//       res.status(404).json({ message: 'Frontend build not available for this deployment.' });
+//     });
+//   }
+// } else {
+//   app.get('/', (req, res) => {
+//     res.send('ShopNest API is running in Development mode...');
+//   });
+// }
+
+app.get('/', (req, res) => {
+  res.send('ShopNest API is running successfully!');
+});
+
+// Catch-all for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ message: 'API route not found' });
+});
 
 const PORT = process.env.PORT || 5000;
 
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
-
 module.exports = app;
