@@ -16,8 +16,9 @@ const app = express();
 //   credentials: true
 // }));
 
+
 const allowedOrigins = [
-  'http://localhost:5173', 'https://shopnest-liart.vercel.app',
+  'https://shopnest-liart.vercel.app', 'http://localhost:3000', 
   ...(process.env.FRONTEND_URLS || "")
     .split(",")
     .map((origin) => origin.trim())
