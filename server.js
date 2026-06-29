@@ -9,16 +9,9 @@ dotenv.config();
 connectDB();
 
 const app = express();
-
-// Set CORS for frontend URL / allow single-node deploy
-// app.use(cors({
-//   origin: ['http://localhost:3000', 'https://shopnest-liart.vercel.app', process.env.FRONTEND_URL],
-//   credentials: true
-// }));
-
-
 const allowedOrigins = [
-  'https://shopnest-liart.vercel.app', 'http://localhost:3000', 
+  'https://shopnest-liart.vercel.app', 
+  'http://localhost:3000', 
   ...(process.env.FRONTEND_URLS || "")
     .split(",")
     .map((origin) => origin.trim())
