@@ -2,7 +2,7 @@ const path = require('path');
 const Product = require('../models/Product');
 const cloudinary = require('../config/cloudinary');
 
-const fallbackImageUrl = 'https://via.placeholder.com/300x300?text=ShopNest';
+const fallbackImageUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="%234b5563">ShopNest</text></svg>';
 
 const hasCloudinaryConfig = () =>
   process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
@@ -79,8 +79,14 @@ const isHttpUrl = (value) =>
   typeof value === 'string' && /^https?:\/\//i.test(value);
 
 const resolveImageUpload = async (req) => {
-  if (req.file && req.file.buffer) {
-    return uploadBufferToCloudinary(req.file);
+  const uploadedFile = req.file && req.file.buffer
+    ? req.file
+    : Array.isArray(req.files)
+      ? req.files.find((file) => file && file.buffer)
+      : null;
+
+  if (uploadedFile) {
+    return uploadBufferToCloudinary(uploadedFile);
   }
 
   if (isBase64DataUrl(req.body.image)) {
